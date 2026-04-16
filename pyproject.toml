@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "SS"
-version = "0.1.0"
+version = "0.3.0"
 description = "Desktop SunCalc application with 3D visualization, built on top of suncalc-py"
 readme = "README.md"
 requires-python = ">=3.10"

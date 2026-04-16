@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QDate
 from PySide6.QtGui import QFont
@@ -26,6 +27,7 @@ from matplotlib.figure import Figure
 from app.state import AppState
 from app.simulation import build_frame_state, build_live_state
 from app.render_3d import render_scene
+from app.weather_data import WeatherRepository
 
 
 LIGHT_STYLESHEET = """
@@ -173,21 +175,24 @@ QWidget#CanvasHost {
 }
 """
 
+
 class Mpl3DCanvas(FigureCanvas):
     def __init__(self):
         self.figure = Figure(figsize=(10, 7), facecolor="#FFFFFF")
         super().__init__(self.figure)
         self.ax = self.figure.add_subplot(111, projection="3d")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.figure.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.02)
         self.update_theme()
 
     def update_theme(self):
         self.figure.patch.set_facecolor("#0F1115")
         self.ax.set_facecolor("#0F1115")
 
-    def redraw_scene(self, frame_state, app_state):
-        render_scene(self.ax, frame_state, app_state)
+    def redraw_scene(self, frame_state, app_state, weather_bundle=None):
+        render_scene(self.ax, frame_state, app_state, weather_bundle=weather_bundle)
         self._style_3d_axes()
+        self.figure.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.02)
         self.draw_idle()
 
     def _style_3d_axes(self):
@@ -198,7 +203,7 @@ class Mpl3DCanvas(FigureCanvas):
             ax.yaxis.pane.set_facecolor((1.0, 1.0, 1.0, 1.0))
             ax.zaxis.pane.set_facecolor((1.0, 1.0, 1.0, 1.0))
         except Exception:
-         pass
+            pass
 
         for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
             try:
@@ -231,8 +236,21 @@ class MainWindow(QMainWindow):
         now = datetime.now()
         self.app_state = AppState(
             selected_date=now.date(),
-            hour=now.hour,
+            hour=now.hour + now.minute / 60.0,
         )
+
+        base_dir = Path(__file__).resolve().parent.parent
+        data_dir = base_dir / "data"
+
+        self.weather_repo = None
+        try:
+            self.weather_repo = WeatherRepository(
+                station_csv=data_dir / "s_t_400_2025_podpisane_wybrane_kolumny_POPRAWNE_OPAD.csv",
+                model_csv=data_dir / "zielona_gora_2025_polaczone_celsius.csv",
+                extra_rain_csv=data_dir / "zielona_gora_opady_godzinowe_2025.csv",
+            )
+        except Exception:
+            self.weather_repo = None
 
         self.setWindowTitle("SunCalc 3D — Live i Symulacja")
         self.resize(1600, 950)
@@ -256,7 +274,6 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # SIDEBAR
         self.sidebar = QFrame()
         self.sidebar.setObjectName("Sidebar")
         self.sidebar.setFixedWidth(370)
@@ -268,14 +285,13 @@ class MainWindow(QMainWindow):
         title = QLabel("SunCalc 3D")
         title.setObjectName("Title")
 
-        subtitle = QLabel("Live + symulacja słońca, księżyca, światła i cienia")
+        subtitle = QLabel("Live + symulacja słońca, księżyca, światła, cienia oraz pogody")
         subtitle.setObjectName("SubTitle")
         subtitle.setWordWrap(True)
 
         sidebar_layout.addWidget(title)
         sidebar_layout.addWidget(subtitle)
 
-        # TRYB
         mode_group = QGroupBox("Tryb pracy")
         mode_layout = QGridLayout(mode_group)
 
@@ -288,7 +304,6 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addWidget(mode_group)
 
-        # CZAS
         time_group = QGroupBox("Czas")
         time_layout = QGridLayout(time_group)
 
@@ -303,6 +318,9 @@ class MainWindow(QMainWindow):
 
         initial_hour = int(self.app_state.hour)
         initial_minute = int(round((self.app_state.hour - initial_hour) * 60))
+        if initial_minute == 60:
+            initial_hour += 1
+            initial_minute = 0
         self.hour_label = QLabel(f"{initial_hour:02d}:{initial_minute:02d}")
         self.hour_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
@@ -317,36 +335,28 @@ class MainWindow(QMainWindow):
 
         time_layout.addWidget(QLabel("Data"), 0, 0)
         time_layout.addWidget(self.date_edit, 0, 1, 1, 2)
-
         time_layout.addWidget(QLabel("Godzina"), 1, 0)
         time_layout.addWidget(self.hour_slider, 1, 1)
         time_layout.addWidget(self.hour_label, 1, 2)
-
         time_layout.addWidget(QLabel("Krok"), 2, 0)
         time_layout.addWidget(self.step_combo, 2, 1, 1, 2)
-
         time_layout.addWidget(self.btn_now, 3, 0)
         time_layout.addWidget(self.btn_play, 3, 1)
         time_layout.addWidget(self.btn_stop, 3, 2)
 
         sidebar_layout.addWidget(time_group)
 
-        # WIDOK
         view_group = QGroupBox("Widok")
         view_layout = QVBoxLayout(view_group)
 
         self.chk_sun = QCheckBox("Pokaż słońce")
         self.chk_sun.setChecked(True)
-
         self.chk_moon = QCheckBox("Pokaż księżyc")
         self.chk_moon.setChecked(True)
-
         self.chk_shadows = QCheckBox("Pokaż cień")
         self.chk_shadows.setChecked(True)
-
         self.chk_light = QCheckBox("Pokaż strefy światła")
         self.chk_light.setChecked(True)
-
         self.chk_infield = QCheckBox("Uwzględnij środek toru")
         self.chk_infield.setChecked(True)
 
@@ -355,7 +365,35 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addWidget(view_group)
 
-        # STATUS
+        weather_group = QGroupBox("Pogoda")
+        weather_layout = QVBoxLayout(weather_group)
+
+        self.chk_weather = QCheckBox("Włącz warstwę pogody")
+        self.chk_weather.setChecked(True)
+        self.chk_clouds = QCheckBox("Pokaż chmury")
+        self.chk_clouds.setChecked(True)
+        self.chk_rain = QCheckBox("Pokaż deszcz")
+        self.chk_rain.setChecked(True)
+
+        self.weather_source_combo = QComboBox()
+        self.weather_source_combo.addItems(["best", "station", "model", "extra"])
+        self.weather_source_combo.setCurrentText("best")
+
+        self.weather_info = QLabel(
+            "Źródło danych: lokalne CSV" if self.weather_repo is not None else "Źródło danych: brak / nie udało się wczytać"
+        )
+        self.weather_info.setWordWrap(True)
+        self.weather_info.setStyleSheet("color:#6B7280;")
+
+        weather_layout.addWidget(self.chk_weather)
+        weather_layout.addWidget(self.chk_clouds)
+        weather_layout.addWidget(self.chk_rain)
+        weather_layout.addWidget(QLabel("Źródło danych opadu"))
+        weather_layout.addWidget(self.weather_source_combo)
+        weather_layout.addWidget(self.weather_info)
+
+        sidebar_layout.addWidget(weather_group)
+
         status_group = QGroupBox("Status aplikacji")
         status_layout = QVBoxLayout(status_group)
 
@@ -368,7 +406,6 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        # PRAWA CZĘŚĆ
         right_wrap = QWidget()
         right_layout = QVBoxLayout(right_wrap)
         right_layout.setContentsMargins(18, 18, 18, 18)
@@ -392,7 +429,7 @@ class MainWindow(QMainWindow):
         canvas_card = QFrame()
         canvas_card.setObjectName("CanvasHost")
         canvas_layout = QVBoxLayout(canvas_card)
-        canvas_layout.setContentsMargins(10, 10, 10, 10)
+        canvas_layout.setContentsMargins(0, 0, 0, 0)
 
         self.canvas = Mpl3DCanvas()
         canvas_layout.addWidget(self.canvas)
@@ -420,6 +457,11 @@ class MainWindow(QMainWindow):
         self.chk_light.toggled.connect(self.on_view_changed)
         self.chk_infield.toggled.connect(self.on_view_changed)
 
+        self.chk_weather.toggled.connect(self.on_weather_changed)
+        self.chk_clouds.toggled.connect(self.on_weather_changed)
+        self.chk_rain.toggled.connect(self.on_weather_changed)
+        self.weather_source_combo.currentIndexChanged.connect(self.on_weather_changed)
+
     def set_live_mode(self):
         self.app_state.mode = "live"
         self.app_state.playing = False
@@ -446,7 +488,7 @@ class MainWindow(QMainWindow):
         self.app_state.reset_to_now()
         d = self.app_state.selected_date
         self.date_edit.setDate(QDate(d.year, d.month, d.day))
-        self.hour_slider.setValue(self.app_state.hour)
+        self.hour_slider.setValue(int(round(self.app_state.hour * 4)))
         self.redraw()
 
     def start_playback(self):
@@ -500,6 +542,13 @@ class MainWindow(QMainWindow):
         self.app_state.include_infield = self.chk_infield.isChecked()
         self.redraw()
 
+    def on_weather_changed(self):
+        self.app_state.show_weather = self.chk_weather.isChecked()
+        self.app_state.show_clouds = self.chk_clouds.isChecked()
+        self.app_state.show_rain = self.chk_rain.isChecked()
+        self.app_state.weather_source = self.weather_source_combo.currentText()
+        self.redraw()
+
     def refresh_live(self):
         if self.app_state.mode == "live" and not self.app_state.playing:
             self.redraw()
@@ -521,6 +570,17 @@ class MainWindow(QMainWindow):
             self.play_timer.stop()
             self.app_state.frame_hour = 0.0
 
+    def _get_weather_bundle(self, frame_state):
+        if not self.app_state.show_weather or self.weather_repo is None:
+            return None
+        try:
+            return self.weather_repo.get_weather_bundle(
+                frame_state["dt_local"],
+                source=self.app_state.weather_source,
+            )
+        except Exception:
+            return None
+
     def redraw(self):
         if self.app_state.mode == "live":
             frame_state = build_live_state()
@@ -529,10 +589,11 @@ class MainWindow(QMainWindow):
             frame_state = build_frame_state(self.app_state.selected_date, self.app_state.hour)
             self.header_info.setText("Tryb symulacji")
 
-        self.canvas.redraw_scene(frame_state, self.app_state)
-        self._update_status(frame_state)
+        weather_bundle = self._get_weather_bundle(frame_state)
+        self.canvas.redraw_scene(frame_state, self.app_state, weather_bundle=weather_bundle)
+        self._update_status(frame_state, weather_bundle)
 
-    def _update_status(self, frame_state):
+    def _update_status(self, frame_state, weather_bundle=None):
         dt_local = frame_state["dt_local"]
         sun_info = frame_state["sun_info"]
         moon_info = frame_state["moon_info"]
@@ -540,6 +601,23 @@ class MainWindow(QMainWindow):
         day_info = frame_state["day_info"]
 
         mode_text = "LIVE" if self.app_state.mode == "live" else "SYMULACJA"
+
+        weather_lines = "\n\nPogoda\n• brak danych"
+        if weather_bundle:
+            clouds = weather_bundle.get("clouds")
+            rain = weather_bundle.get("rain")
+            temp = weather_bundle.get("temperature")
+
+            cloud_val = "brak" if clouds is None or clouds.value is None else f"{clouds.value:.1f} {clouds.unit}"
+            rain_val = "brak" if rain is None or rain.value is None else f"{rain.value:.2f} {rain.unit}"
+            temp_val = "brak" if temp is None or temp.value is None else f"{temp.value:.1f} {temp.unit}"
+
+            weather_lines = (
+                "\n\nPogoda\n"
+                f"• chmury: {cloud_val}\n"
+                f"• opad: {rain_val}\n"
+                f"• temperatura: {temp_val}"
+            )
 
         self.status_box.setText(
             f"Tryb: {mode_text}\n"
@@ -555,6 +633,7 @@ class MainWindow(QMainWindow):
             f"Dzień\n"
             f"• wschód: {day_info['sunrise'].strftime('%H:%M')}\n"
             f"• zachód: {day_info['sunset'].strftime('%H:%M')}"
+            f"{weather_lines}"
         )
 
 

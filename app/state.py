@@ -18,6 +18,11 @@ class AppState:
     time_step_hours: float = 1.0
     include_infield: bool = True
 
+    show_weather: bool = True
+    show_clouds: bool = True
+    show_rain: bool = True
+    weather_source: str = "best"
+
     def reset_to_now(self):
         now = datetime.now()
         self.selected_date = now.date()

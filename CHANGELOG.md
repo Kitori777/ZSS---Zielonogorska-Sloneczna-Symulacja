@@ -3,6 +3,32 @@
 
 Projekt bazuje na bibliotece `suncalc-py` autorstwa Kyle’a Barrona i został rozszerzony o własną aplikację desktopową do wizualizacji 3D położenia słońca, księżyca oraz cienia.
 
+## [0.3.0] - 2026-04-16
+
+### Dodano
+- Warstwę pogodową w aplikacji 3D.
+- Obsługę lokalnych danych pogodowych z plików CSV w katalogu `data`.
+- Wizualizację opadu na scenie w postaci deszczu oraz oznaczeń punktów objętych opadem.
+- Wizualizację zachmurzenia nad sceną.
+- Przewijany panel boczny oparty o `QScrollArea`, poprawiający działanie interfejsu przy pełnym ekranie.
+
+### Zmieniono
+- Rozszerzono interfejs GUI o sekcję **Pogoda**.
+- Rozszerzono stan aplikacji o parametry związane z pogodą, statystykami oraz kamerą.
+- Zmieniono render sceny 3D tak, aby uwzględniał:
+  - opad,
+  - chmury,
+  - aktualne informacje pogodowe,
+  - ustawienia kąta widoku.
+- Poprawiono czytelność nakładanych informacji tekstowych na scenie.
+- Uporządkowano układ aplikacji dla pracy w trybie pełnoekranowym.
+
+### Techniczne
+- Dodano moduł `weather_data` odpowiedzialny za wczytywanie i przygotowanie danych pogodowych.
+- Przygotowano obsługę danych lokalnych oraz integrację pod przyszłe źródła online.
+- Rozszerzono `render_3d`, `gui` oraz `state` o nowe elementy związane z pogodą i analizą warunków atmosferycznych.
+- Zachowano dotychczasową logikę symulacji słońca, księżyca, cienia oraz sceny toru jako bazę aplikacji.
+
 ## [0.2.0] - 2026-04-01
 
 ### Dodano
