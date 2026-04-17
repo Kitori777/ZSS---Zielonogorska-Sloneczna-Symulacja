@@ -9,7 +9,7 @@ class AppState:
     playing: bool = False
     frame_hour: float = 0.0
 
-    mode: str = "live"          # "live" or "simulation"
+    mode: str = "live"  # "live" or "simulation"
     show_sun: bool = True
     show_moon: bool = True
     show_shadows: bool = True

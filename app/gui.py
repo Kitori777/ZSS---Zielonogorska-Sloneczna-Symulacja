@@ -2,9 +2,11 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-
-from PySide6.QtCore import Qt, QTimer, QDate, Signal
-from PySide6.QtGui import QFont, QAction, QKeySequence
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import proj3d
+from PySide6.QtCore import QDate, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -17,20 +19,16 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
-    QSizePolicy,
     QScrollArea,
+    QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,
 )
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import proj3d
-
-from app.state import AppState
-from app.simulation import build_frame_state, build_live_state
 from app.render_3d import render_scene
+from app.simulation import build_frame_state, build_live_state
+from app.state import AppState
 from app.weather_data import WeatherRepository
 
 
@@ -284,8 +282,6 @@ class Mpl3DCanvas(FigureCanvas):
         self.figure.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.02)
         self.draw_idle()
 
-
-
     def store_current_view(self):
         try:
             self.view_elev = float(self.ax.elev)
@@ -439,7 +435,13 @@ class MainWindow(QMainWindow):
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDisplayFormat("yyyy-MM-dd")
-        self.date_edit.setDate(QDate(self.app_state.selected_date.year, self.app_state.selected_date.month, self.app_state.selected_date.day))
+        self.date_edit.setDate(
+            QDate(
+                self.app_state.selected_date.year,
+                self.app_state.selected_date.month,
+                self.app_state.selected_date.day,
+            )
+        )
 
         self.hour_slider = VerticalTimeSlider()
         self.hour_slider.setValue(int(round(self.app_state.hour * 4)))
@@ -522,7 +524,9 @@ class MainWindow(QMainWindow):
         self.weather_source_combo.setCurrentText("best")
 
         self.weather_info = QLabel(
-            "Źródło danych: hybrydowe (Open-Meteo + lokalne CSV)" if self.weather_repo is not None else "Źródło danych: brak / nie udało się wczytać"
+            "Źródło danych: hybrydowe (Open-Meteo + lokalne CSV)"
+            if self.weather_repo is not None
+            else "Źródło danych: brak / nie udało się wczytać"
         )
         self.weather_info.setWordWrap(True)
         self.weather_info.setStyleSheet("color:#6B7280;")
@@ -762,8 +766,6 @@ class MainWindow(QMainWindow):
             self._sync_time_controls()
             self._export_simulation_csv()
 
-
-
     def on_canvas_release(self, event):
         if event.inaxes == self.canvas.ax:
             self.canvas.store_current_view()
@@ -827,7 +829,9 @@ class MainWindow(QMainWindow):
         item = self.selected_point_payload
         if not item:
             if self.last_export_path:
-                self.point_info_box.setText(f"Kliknij punkt na torze, aby zobaczyć jego dane.\nOstatni eksport CSV: {self.last_export_path}")
+                self.point_info_box.setText(
+                    f"Kliknij punkt na torze, aby zobaczyć jego dane.\nOstatni eksport CSV: {self.last_export_path}"
+                )
             else:
                 self.point_info_box.setText("Kliknij punkt na torze, aby zobaczyć jego dane.")
             return
@@ -843,7 +847,7 @@ class MainWindow(QMainWindow):
 
         text = (
             f"Punkt: X={item['x']:.1f}, Y={item['y']:.1f}\n"
-            f"Obszar: {item.get('point_type', '-') }\n"
+            f"Obszar: {item.get('point_type', '-')}\n"
             f"Stan: {shade_txt}\n"
             f"Nasłonecznienie: {item.get('solar_exposure_pct', 0.0):.1f}%\n"
             f"Temp. powietrza: {air_temp_txt}\n"
@@ -865,31 +869,33 @@ class MainWindow(QMainWindow):
             return
 
         for item in analysis.get("all", []):
-            self.simulation_records.append({
-                "frame_local_time": frame_key,
-                "date": frame_state["dt_local"].strftime("%Y-%m-%d"),
-                "time": frame_state["dt_local"].strftime("%H:%M:%S"),
-                "x": item.get("x"),
-                "y": item.get("y"),
-                "point_type": item.get("point_type"),
-                "is_shaded": item.get("is_shaded"),
-                "solar_exposure_pct": item.get("solar_exposure_pct"),
-                "air_temperature_c": item.get("air_temperature_c"),
-                "air_temperature_k": item.get("air_temperature_k"),
-                "estimated_point_temperature_c": item.get("estimated_point_temperature_c"),
-                "rain_mm_h": item.get("rain_mm_h"),
-                "precipitation_m_per_s": item.get("precipitation_m_per_s"),
-                "cloud_cover": item.get("cloud_cover"),
-                "cloud_unit": item.get("cloud_unit"),
-                "cloud_cover_raw": item.get("cloud_cover_raw"),
-                "cloud_unit_raw": item.get("cloud_unit_raw"),
-                "relative_humidity": item.get("relative_humidity"),
-                "wind_speed_m_per_s": item.get("wind_speed_m_per_s"),
-                "air_pressure_pa": item.get("air_pressure_pa"),
-                "shortwave_down_w_per_m2": item.get("shortwave_down_w_per_m2"),
-                "longwave_down_w_per_m2": item.get("longwave_down_w_per_m2"),
-                "longwave_source": item.get("longwave_source"),
-            })
+            self.simulation_records.append(
+                {
+                    "frame_local_time": frame_key,
+                    "date": frame_state["dt_local"].strftime("%Y-%m-%d"),
+                    "time": frame_state["dt_local"].strftime("%H:%M:%S"),
+                    "x": item.get("x"),
+                    "y": item.get("y"),
+                    "point_type": item.get("point_type"),
+                    "is_shaded": item.get("is_shaded"),
+                    "solar_exposure_pct": item.get("solar_exposure_pct"),
+                    "air_temperature_c": item.get("air_temperature_c"),
+                    "air_temperature_k": item.get("air_temperature_k"),
+                    "estimated_point_temperature_c": item.get("estimated_point_temperature_c"),
+                    "rain_mm_h": item.get("rain_mm_h"),
+                    "precipitation_m_per_s": item.get("precipitation_m_per_s"),
+                    "cloud_cover": item.get("cloud_cover"),
+                    "cloud_unit": item.get("cloud_unit"),
+                    "cloud_cover_raw": item.get("cloud_cover_raw"),
+                    "cloud_unit_raw": item.get("cloud_unit_raw"),
+                    "relative_humidity": item.get("relative_humidity"),
+                    "wind_speed_m_per_s": item.get("wind_speed_m_per_s"),
+                    "air_pressure_pa": item.get("air_pressure_pa"),
+                    "shortwave_down_w_per_m2": item.get("shortwave_down_w_per_m2"),
+                    "longwave_down_w_per_m2": item.get("longwave_down_w_per_m2"),
+                    "longwave_source": item.get("longwave_source"),
+                }
+            )
 
         self.last_recorded_frame_key = frame_key
 
@@ -960,9 +966,17 @@ class MainWindow(QMainWindow):
             temp = weather_bundle.get("temperature")
             meta = weather_bundle.get("meta") or {}
 
-            cloud_val = "brak" if clouds is None or clouds.value is None else f"{clouds.value:.1f} {clouds.unit}"
-            rain_val = "brak" if rain is None or rain.value is None else f"{rain.value:.2f} {rain.unit}"
-            temp_val = "brak" if temp is None or temp.value is None else f"{temp.value:.1f} {temp.unit}"
+            cloud_val = (
+                "brak"
+                if clouds is None or clouds.value is None
+                else f"{clouds.value:.1f} {clouds.unit}"
+            )
+            rain_val = (
+                "brak" if rain is None or rain.value is None else f"{rain.value:.2f} {rain.unit}"
+            )
+            temp_val = (
+                "brak" if temp is None or temp.value is None else f"{temp.value:.1f} {temp.unit}"
+            )
             source_val = meta.get("source", self.app_state.weather_source)
 
             weather_lines = (

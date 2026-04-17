@@ -1,121 +1,251 @@
-# SunCalc 3D — Live i Symulacja
+# ZSS — Zielonogórska Słoneczna Symulacja
 
-Desktopowa aplikacja Python/Qt do wizualizacji położenia Słońca i Księżyca, kierunku oraz długości cienia, z trybem live i symulacją dobową. Projekt zawiera też bibliotekę `suncalc` do obliczeń astronomicznych oraz rozszerzenia pogodowe, analizę punktową i eksport danych do CSV.
+Desktopowa aplikacja w Pythonie i Qt do analizy położenia słońca i księżyca, cienia, pogody oraz punktowego wpływu warunków atmosferycznych na tor i środek toru. Projekt łączy obliczenia astronomiczne z wizualizacją 3D, danymi historycznymi CSV oraz danymi pogodowymi online.
 
-## Autorstwo i źródło
+---
 
-Ten projekt bazuje na bibliotece **suncalc-py** autorstwa **Kyle'a Barrona**:
-- oryginalny projekt: `https://github.com/kylebarron/suncalc-py`
-- licencja oryginału: **MIT**
+## Najważniejsze możliwości
 
-W tym repozytorium biblioteka została rozszerzona i wykorzystana jako część większej aplikacji desktopowej z interfejsem GUI, wizualizacją 3D, warstwą pogodową, analizą punktową oraz dodatkowymi helperami astronomicznymi.
-
-## Co zawiera repozytorium
-
-- `suncalc/` — rdzeń obliczeń astronomicznych
-- `app/` — interfejs GUI, logika wizualizacji, pogoda i analiza punktowa
-- `data/` — lokalne dane historyczne i modelowe CSV
-- `docs/` — dokumentacja techniczna projektu w HTML
-- `exports/` — eksporty CSV z symulacji
-- `main.py` — punkt startowy aplikacji desktopowej
-- `tests/` — testy części obliczeniowej
-
-## Najważniejsze funkcje
-
-- tryb **Live**
-- tryb **Symulacja**
+- tryb **Live** oparty o aktualny czas lokalny,
+- tryb **Symulacja** dla wybranego dnia i godziny,
 - wizualizacja 3D:
-  - Słońca
-  - Księżyca
-  - światła
-  - cienia
-  - chmur
-  - deszczu
-- integracja z **Open-Meteo**
-- fallback do lokalnych plików **CSV**
-- analiza punktowa toru i środka toru
-- podgląd danych punktu po wskazaniu / najechaniu
-- obracanie widoku 3D myszką
-- zoom in / zoom out / reset zoomu
-- eksport danych symulacji do **CSV**
+  - słońca,
+  - księżyca,
+  - stref światła,
+  - cienia,
+  - chmur,
+  - deszczu,
+- analiza punktowa toru i środka toru,
+- eksport wyników symulacji do **CSV**,
+- integracja z **Open-Meteo**,
+- fallback do lokalnych plików **CSV**,
+- obracanie sceny myszką,
+- zoom in / zoom out / reset zoomu,
+- dokumentacja techniczna w folderze **`docs/`**.
 
-## Jakie dane trafiają do analizy / eksportu
+---
 
-W zależności od źródła danych projekt może zwracać między innymi:
+## Co dokładnie analizuje aplikacja
 
-- `air_temperature_c`
-- `air_temperature_k`
-- `estimated_point_temperature_c`
-- `rain_mm_h`
-- `precipitation_m_per_s`
-- `cloud_cover`
-- `cloud_unit`
-- `cloud_cover_raw`
-- `cloud_unit_raw`
-- `relative_humidity`
-- `wind_speed_m_per_s`
-- `air_pressure_pa`
-- `shortwave_down_w_per_m2`
-- `longwave_down_w_per_m2`
-- `longwave_source`
-- `solar_exposure_pct`
-- `is_shaded`
+Dla każdego punktu siatki na torze lub środku toru aplikacja może wyznaczyć między innymi:
 
-## Dokumentacja
+- czy punkt jest w cieniu,
+- procent ekspozycji słonecznej,
+- temperaturę powietrza,
+- temperaturę powietrza w kelwinach,
+- szacowaną temperaturę punktu,
+- opad w mm/h,
+- opad w m/s,
+- zachmurzenie,
+- wilgotność względną,
+- prędkość wiatru,
+- ciśnienie powietrza,
+- promieniowanie krótkofalowe,
+- promieniowanie długofalowe.
 
-W folderze `docs/` znajduje się raport HTML opisujący:
-- funkcje matematyczne projektu
-- model słońca i cienia
-- geometrię toru
-- forcingi atmosferyczne
-- model temperatury punktu
-- estymację longwave
-- wykresy i zależności
+---
+
+## Źródła danych
+
+Projekt korzysta z dwóch typów źródeł:
+
+### 1. Lokalne pliki CSV
+Folder `data/` zawiera dane historyczne i modelowe, między innymi:
+
+- dane stacyjne,
+- dane modelowe,
+- godzinowe opady,
+- temperaturę,
+- punkt rosy,
+- ciśnienie,
+- wiatr,
+- śnieg,
+- promieniowanie shortwave i longwave,
+- temperatury i wilgotność warstw gruntu,
+- runoff i parowanie.
+
+### 2. Open-Meteo
+Aplikacja potrafi pobierać dane online dla trybu live i przyszłych symulacji, z cache, aby nie wykonywać zbędnych zapytań.
+
+---
+
+## Eksport CSV
+
+Po zakończeniu lub zatrzymaniu symulacji aplikacja zapisuje plik CSV do folderu:
+
+```text
+exports/
+```
+
+Przykładowe kolumny eksportu:
+
+```text
+frame_local_time
+date
+time
+x
+y
+point_type
+is_shaded
+solar_exposure_pct
+air_temperature_c
+air_temperature_k
+estimated_point_temperature_c
+rain_mm_h
+precipitation_m_per_s
+cloud_cover
+cloud_unit
+cloud_cover_raw
+cloud_unit_raw
+relative_humidity
+wind_speed_m_per_s
+air_pressure_pa
+shortwave_down_w_per_m2
+longwave_down_w_per_m2
+longwave_source
+```
+
+### Uwaga o `longwave_down_w_per_m2`
+- jeżeli źródło danych zwraca wartość bezpośrednio, trafia ona do CSV,
+- jeżeli źródło nie zwraca longwave, aplikacja liczy wartość estymowaną,
+- kolumna `longwave_source` informuje, czy wartość pochodzi ze źródła czy z estymacji.
+
+---
+
+## Dokumentacja techniczna
+
+W folderze:
+
+```text
+docs/
+```
+
+znajduje się raport HTML opisujący:
+
+- funkcje rdzenia obliczeniowego,
+- matematykę pozycji słońca i księżyca,
+- model cienia,
+- geometrię toru,
+- forcingi atmosferyczne,
+- model temperatury punktu,
+- estymację longwave,
+- wykresy i zależności.
 
 Główny plik dokumentacji:
-- `docs/index.html`
+
+```text
+docs/index.html
+```
+
+---
+
+## Struktura projektu
+
+```text
+.
+├── app/
+│   ├── gui.py
+│   ├── render_3d.py
+│   ├── scene.py
+│   ├── simulation.py
+│   ├── state.py
+│   └── weather_data.py
+├── data/
+├── docs/
+│   ├── index.html
+│   └── assets/
+├── exports/
+├── suncalc/
+├── tests/
+├── main.py
+├── pyproject.toml
+└── README.md
+```
+
+---
+
+## Wymagania
+
+- Python 3.10+
+- PySide6
+- matplotlib
+- numpy
+- pandas
+- requests
+
+---
 
 ## Instalacja
 
 ### Wersja podstawowa
 
 ```bash
-pip install -e .
+uv sync
 ```
 
-### Wersja z GUI
+### Wersja rozwinięta
 
 ```bash
-pip install -e .[desktop]
+uv sync --group dev --extra desktop --extra data
 ```
 
+---
 
-
-### Wszystko naraz
+## Uruchomienie
 
 ```bash
-pip install -e .[desktop,data,test]
+uv run --active python main.py
 ```
 
-## Uruchomienie aplikacji
 
-```bash
-python main.py
-```
+---
 
-albo po instalacji:
+## Sterowanie
 
-```bash
-suncalc-gui
-```
+### Panel boczny
+- wybór trybu Live / Symulacja,
+- wybór daty,
+- pionowy suwak czasu,
+- krok symulacji,
+- przełączniki widoku,
+- ustawienia warstwy pogody,
+- status aplikacji,
+- dane punktu po najechaniu / wskazaniu.
 
-## Uruchomienie testów
+### Widok 3D
+- obrót sceny myszką,
+- zachowanie kąta widoku po odświeżeniu,
+- zoom `+`, `-`, `100%`,
+- możliwość analizy punktów siatki.
+
+---
+
+## Testy
 
 ```bash
 pytest
 ```
 
+---
+
+## Autorstwo i źródło
+
+Projekt bazuje na bibliotece **suncalc-py** autorstwa **Kyle’a Barrona**:
+
+- oryginalny projekt: `https://github.com/kylebarron/suncalc-py`
+- licencja oryginału: **MIT**
+
+W tym repozytorium biblioteka została rozszerzona o:
+
+- aplikację desktopową,
+- wizualizację 3D,
+- warstwę pogodową,
+- analizę punktową,
+- eksport forcingów atmosferycznych,
+- dokumentację raportową HTML.
+
+---
 
 ## Licencja
 
-Repozytorium zachowuje licencję MIT. Przy dalszej dystrybucji zachowaj informację o oryginalnym autorze biblioteki `suncalc-py` i plik `LICENSE`.
+Repozytorium zachowuje licencję MIT. Przy dalszej dystrybucji zachowaj informację o oryginalnym autorze biblioteki `suncalc-py` oraz plik `LICENSE`.

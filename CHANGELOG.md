@@ -3,6 +3,37 @@
 
 Projekt bazuje na bibliotece `suncalc-py` autorstwa Kyle’a Barrona i został rozszerzony o własną aplikację desktopową do wizualizacji 3D położenia słońca, księżyca oraz cienia.
 
+## [0.4.2] - 2026-04-17
+
+### Dodano
+- Rozszerzony zestaw testów jednostkowych dla modułów:
+  - `app/simulation.py`
+  - `app/scene.py`
+  - `app/state.py`
+  - `app/weather_data.py`
+  - `app/render_3d.py`
+  - wybranych helperów z `app/gui.py`
+  - `suncalc/astro_helpers.py`
+- Dodatkowe testy dla analizy punktowej, forcingów atmosferycznych i eksportu danych.
+- Obsługę uruchamiania środowiska developerskiego przez `uv`.
+- Konfigurację developerską pod `uv sync --group dev`.
+
+### Zmieniono
+- Zaktualizowano konfigurację projektu do wersji `0.4.2`.
+- Uporządkowano pracę z zależnościami developerskimi i testowymi.
+- Usprawniono sposób uruchamiania testów i narzędzi lintujących w środowisku `uv`.
+- Doprecyzowano README i komendy instalacyjne pod nowy workflow.
+
+### Naprawiono
+- Naprawiono testy niezgodne z Pythonem 3.8+ / 3.10+ w zależności od środowiska.
+- Naprawiono testy `test_suncalc.py`, w tym problemy z:
+  - `NameError: times is not defined`
+  - niestabilnym zachowaniem testów pandasowych przy danych seryjnych i tablicowych.
+- Naprawiono błędy Ruff zgłaszane dla:
+  - niejawnego `zip()` bez `strict=`,
+  - nieużywanych zmiennych w testach.
+- Poprawiono stabilność i zgodność testów w różnych środowiskach uruchomieniowych.
+
 ## [0.4.1] - 2026-04-17
 
 ### Dodano

@@ -1,26 +1,26 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
 
 from app.scene import (
-    SCENE_W,
-    SCENE_H,
-    SUN_DISTANCE,
-    SUN_MARKER_SIZE,
-    MOON_DISTANCE,
-    MOON_MARKER_SIZE,
     CX,
     CY,
     GRID_STEP,
-    point_on_speedway_track,
-    point_in_infield,
+    MOON_DISTANCE,
+    MOON_MARKER_SIZE,
+    SCENE_H,
+    SCENE_W,
+    SUN_DISTANCE,
+    SUN_MARKER_SIZE,
     compute_light_map,
-    draw_speedway,
     draw_obstacles,
+    draw_speedway,
+    point_in_infield,
+    point_on_speedway_track,
 )
 from app.simulation import bearing_to_text
-
 
 SUN_COLOR = "#FDB813"
 SUN_RAY_COLOR = "#F6C453"
@@ -84,8 +84,6 @@ def _point_surface_temperature_estimate(air_temp, solar_factor, is_shaded, rain_
     return value
 
 
-
-
 def _estimate_longwave_down(air_temp_k, relative_humidity, cloud_fraction):
     if air_temp_k is None:
         return None
@@ -101,7 +99,8 @@ def _estimate_longwave_down(air_temp_k, relative_humidity, cloud_fraction):
     eps_clear = 1.24 * (vapor_hpa / air_temp_k) ** (1.0 / 7.0)
     eps_all_sky = min(1.0, eps_clear * (1.0 + 0.22 * cloud_fraction * cloud_fraction))
     sigma = 5.670374419e-8
-    return eps_all_sky * sigma * air_temp_k ** 4
+    return eps_all_sky * sigma * air_temp_k**4
+
 
 def build_point_analysis(frame_state, app_state, weather_bundle=None):
     sun_info = frame_state["sun_info"]
@@ -112,8 +111,8 @@ def build_point_analysis(frame_state, app_state, weather_bundle=None):
         include_infield=app_state.include_infield,
     )
 
-    lit_points = {(float(x), float(y)) for x, y in zip(lit_x, lit_y)}
-    shade_points = {(float(x), float(y)) for x, y in zip(shade_x, shade_y)}
+    lit_points = {(float(x), float(y)) for x, y in zip(lit_x, lit_y, strict=True)}
+    shade_points = {(float(x), float(y)) for x, y in zip(shade_x, shade_y, strict=True)}
     all_points = sorted(lit_points | shade_points)
 
     rain_snap = _snapshot(weather_bundle, "rain")
@@ -154,13 +153,21 @@ def build_point_analysis(frame_state, app_state, weather_bundle=None):
         point_type = "tor" if on_track else "środek toru"
 
         shade_factor = 0.0 if is_shaded else 1.0
-        solar_factor = base_solar * shade_factor * (1.0 - 0.75 * cloud_fraction) * (1.0 - 0.35 * rain_factor)
+        solar_factor = (
+            base_solar * shade_factor * (1.0 - 0.75 * cloud_fraction) * (1.0 - 0.35 * rain_factor)
+        )
         solar_factor = max(0.0, min(solar_factor, 1.0))
         exposure_pct = solar_factor * 100.0
-        estimated_temp = _point_surface_temperature_estimate(air_temp_c, solar_factor, is_shaded, rain_mm_h)
+        estimated_temp = _point_surface_temperature_estimate(
+            air_temp_c, solar_factor, is_shaded, rain_mm_h
+        )
 
         cloud_fraction_value = cloud_fraction
-        longwave_value = longwave if longwave is not None else _estimate_longwave_down(air_temp_k, relative_humidity, cloud_fraction_value)
+        longwave_value = (
+            longwave
+            if longwave is not None
+            else _estimate_longwave_down(air_temp_k, relative_humidity, cloud_fraction_value)
+        )
         longwave_source = "source" if longwave is not None else "estimated"
 
         item = {
@@ -257,7 +264,9 @@ def draw_sun(ax, sun_vector):
     sun_z = 8 + sun_vector[2] * SUN_DISTANCE * 0.7
 
     ax.scatter(
-        [sun_x], [sun_y], [sun_z],
+        [sun_x],
+        [sun_y],
+        [sun_z],
         s=SUN_MARKER_SIZE,
         marker="o",
         c=SUN_COLOR,
@@ -288,7 +297,9 @@ def draw_moon_minecraft_style(ax, sun_vector):
         return
 
     ax.scatter(
-        [moon_x], [moon_y], [moon_z],
+        [moon_x],
+        [moon_y],
+        [moon_z],
         s=MOON_MARKER_SIZE,
         marker="o",
         c=MOON_COLOR,
@@ -322,11 +333,7 @@ def draw_status(ax, frame_state, weather_bundle=None):
         clouds_txt = "brak" if cloud_val is None else f"{cloud_val:.1f}{cloud_unit}"
         rain_txt = "brak" if rain_val is None else f"{rain_val:.2f}{rain_unit}"
         temp_txt = "brak" if temp_val is None else f"{temp_val:.1f}{temp_unit}"
-        weather_text = (
-            f"\nChmury: {clouds_txt}"
-            f"\nOpad: {rain_txt}"
-            f"\nTemperatura: {temp_txt}"
-        )
+        weather_text = f"\nChmury: {clouds_txt}\nOpad: {rain_txt}\nTemperatura: {temp_txt}"
 
     status = (
         f"Data lokalna: {dt_local.strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -449,7 +456,14 @@ def draw_rain_overlay(ax, rain_mm_h, include_infield=True, point_payload=None):
     z_bottom = 3.0
 
     for x, y in selected_points:
-        ax.plot([x, x], [y, y], [z_top, z_bottom], color=RAIN_LINE_COLOR, alpha=line_alpha, linewidth=line_width)
+        ax.plot(
+            [x, x],
+            [y, y],
+            [z_top, z_bottom],
+            color=RAIN_LINE_COLOR,
+            alpha=line_alpha,
+            linewidth=line_width,
+        )
 
     px = [p[0] for p in points]
     py = [p[1] for p in points]
@@ -486,7 +500,9 @@ def draw_rain_overlay(ax, rain_mm_h, include_infield=True, point_payload=None):
     )
 
 
-def render_scene(ax, frame_state, app_state, weather_bundle=None, zoom_factor=1.0, view_elev=28, view_azim=-58):
+def render_scene(
+    ax, frame_state, app_state, weather_bundle=None, zoom_factor=1.0, view_elev=28, view_azim=-58
+):
     ax.clear()
     setup_axes(ax, zoom_factor=zoom_factor, view_elev=view_elev, view_azim=view_azim)
 
@@ -497,8 +513,16 @@ def render_scene(ax, frame_state, app_state, weather_bundle=None, zoom_factor=1.
     sun_info = frame_state["sun_info"]
     sun_vector = frame_state["sun_vector"]
 
-    cloud_cover = _snapshot_value(weather_bundle, "clouds") if app_state.show_weather and app_state.show_clouds else None
-    rain_mm_h = _snapshot_value(weather_bundle, "rain") if app_state.show_weather and app_state.show_rain else None
+    cloud_cover = (
+        _snapshot_value(weather_bundle, "clouds")
+        if app_state.show_weather and app_state.show_clouds
+        else None
+    )
+    rain_mm_h = (
+        _snapshot_value(weather_bundle, "rain")
+        if app_state.show_weather and app_state.show_rain
+        else None
+    )
 
     analysis = build_point_analysis(frame_state, app_state, weather_bundle=weather_bundle)
     lit_details = analysis["lit"]
@@ -516,7 +540,12 @@ def render_scene(ax, frame_state, app_state, weather_bundle=None, zoom_factor=1.
     if sun_info["altitude_deg"] <= 0:
         draw_night_map(ax)
         if rain_mm_h is not None:
-            draw_rain_overlay(ax, rain_mm_h, include_infield=app_state.include_infield, point_payload=analysis["all"])
+            draw_rain_overlay(
+                ax,
+                rain_mm_h,
+                include_infield=app_state.include_infield,
+                point_payload=analysis["all"],
+            )
         legend = ax.legend(loc="upper right")
         if legend:
             legend.get_frame().set_facecolor("#FFFFFF")
@@ -555,7 +584,9 @@ def render_scene(ax, frame_state, app_state, weather_bundle=None, zoom_factor=1.
         _attach_picker(shade_scatter, shade_details)
 
     if rain_mm_h is not None:
-        draw_rain_overlay(ax, rain_mm_h, include_infield=app_state.include_infield, point_payload=analysis["all"])
+        draw_rain_overlay(
+            ax, rain_mm_h, include_infield=app_state.include_infield, point_payload=analysis["all"]
+        )
 
     legend = ax.legend(loc="upper right")
     if legend:

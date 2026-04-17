@@ -53,7 +53,7 @@ DEFAULT_TIMES = [
     (-12, 'nautical_dawn', 'nautical_dusk'),
     (-18, 'night_end', 'night'),
     (6, 'golden_hour_end', 'golden_hour')
-] # yapf: disable
+]  # yapf: disable
 
 # date/time constants and conversions
 dayMs = 1000 * 60 * 60 * 24
@@ -69,7 +69,7 @@ def to_milliseconds(date):
     # Pandas series of Pandas datetime objects
     if pd and pd.api.types.is_datetime64_any_dtype(date):
         # A datetime-like series coerce to int is (always?) in nanoseconds
-        return date.astype('int64') / 10 ** 6
+        return date.astype("int64") / 10**6
 
     # Single pandas Timestamp
     if pd and isinstance(date, pd.Timestamp):
@@ -77,13 +77,13 @@ def to_milliseconds(date):
 
     # Numpy datetime64
     if np.issubdtype(date.dtype, np.datetime64):
-        return date.astype('datetime64[ms]').astype('int64')
+        return date.astype("datetime64[ms]").astype("int64")
 
     # Last-ditch effort
     if pd:
-        return np.array(pd.to_datetime(date).astype('int64') / 10 ** 6)
+        return np.array(pd.to_datetime(date).astype("int64") / 10**6)
 
-    raise ValueError(f'Unknown date type: {type(date)}')
+    raise ValueError(f"Unknown date type: {type(date)}")
 
 
 def to_julian(date):
@@ -96,25 +96,31 @@ def from_julian(j):
     if pd:
         # If a single value, coerce to a pd.Timestamp
         if np.prod(np.array(ms_date).shape) == 1:
-            return pd.to_datetime(ms_date, unit='ms')
+            return pd.to_datetime(ms_date, unit="ms")
 
         # .astype(datetime) is much faster than pd.to_datetime but it only works
         # on series of dates, not on a single pd.Timestamp, so I fall back to
         # pd.to_datetime for that.
         try:
-            return (pd.Series(ms_date) * 1e6).astype('datetime64[ns, UTC]')
+            return (pd.Series(ms_date) * 1e6).astype("datetime64[ns, UTC]")
         except TypeError:
-            return pd.to_datetime(ms_date, unit='ms')
+            return pd.to_datetime(ms_date, unit="ms")
 
     # ms_date could be iterable
     try:
-        return np.array([
-            datetime.utcfromtimestamp(x / 1000)
-            if not np.isnan(x) else np.datetime64('NaT') for x in ms_date])
+        return np.array(
+            [
+                datetime.utcfromtimestamp(x / 1000) if not np.isnan(x) else np.datetime64("NaT")
+                for x in ms_date
+            ]
+        )
 
     except TypeError:
-        return datetime.utcfromtimestamp(
-            ms_date / 1000) if not np.isnan(ms_date) else np.datetime64('NaT')
+        return (
+            datetime.utcfromtimestamp(ms_date / 1000)
+            if not np.isnan(ms_date)
+            else np.datetime64("NaT")
+        )
 
 
 def to_days(date):
@@ -179,7 +185,7 @@ def sun_coords(d):
     M = solar_mean_anomaly(d)
     L = ecliptic_longitude(M)
 
-    return {'dec': declination(L, 0), 'ra': right_ascension(L, 0)}
+    return {"dec": declination(L, 0), "ra": right_ascension(L, 0)}
 
 
 # calculations for sun times
@@ -207,34 +213,25 @@ def observer_angle(height):
 
 
 def get_set_j(h, lw, phi, dec, n, M, L):
-    """Get set time for the given sun altitude
-    """
+    """Get set time for the given sun altitude"""
     w = hour_angle(h, phi, dec)
     a = approx_transit(w, lw, n)
     return solar_transit_j(a, M, L)
 
 
 def get_position(date, lng, lat):
-    """Calculate sun position for a given date and latitude/longitude
-    """
+    """Calculate sun position for a given date and latitude/longitude"""
     lw = rad * -lng
     phi = rad * lat
     d = to_days(date)
 
     c = sun_coords(d)
-    H = sidereal_time(d, lw) - c['ra']
+    H = sidereal_time(d, lw) - c["ra"]
 
-    return {
-        'azimuth': azimuth(H, phi, c['dec']),
-        'altitude': altitude(H, phi, c['dec'])}
+    return {"azimuth": azimuth(H, phi, c["dec"]), "altitude": altitude(H, phi, c["dec"])}
 
 
-def get_times(
-        date,
-        lng,
-        lat,
-        height=0,
-        times: Iterable[Tuple[float, str, str]] = DEFAULT_TIMES):
+def get_times(date, lng, lat, height=0, times: Iterable[Tuple[float, str, str]] = DEFAULT_TIMES):
     """Calculate sun times
 
     Calculate sun times for a given date, latitude/longitude, and,
@@ -271,9 +268,7 @@ def get_times(
 
     Jnoon = solar_transit_j(ds, M, L)
 
-    result = {
-        'solar_noon': from_julian(Jnoon),
-        'nadir': from_julian(Jnoon - 0.5)}
+    result = {"solar_noon": from_julian(Jnoon), "nadir": from_julian(Jnoon - 0.5)}
 
     angles = np.array([time[0] for time in times])
     h0 = (angles + dh) * rad
@@ -302,8 +297,7 @@ def get_times(
 
 
 def moon_coords(d):
-    """Geocentric ecliptic coordinates of the moon
-    """
+    """Geocentric ecliptic coordinates of the moon"""
 
     # ecliptic longitude
     L = rad * (218.316 + 13.176396 * d)
@@ -319,7 +313,7 @@ def moon_coords(d):
     # distance to the moon in km
     dt = 385001 - 20905 * cos(M)
 
-    return {'ra': right_ascension(l, b), 'dec': declination(l, b), 'dist': dt}
+    return {"ra": right_ascension(l, b), "dec": declination(l, b), "dist": dt}
 
 
 def getMoonPosition(date, lat, lng):
@@ -329,21 +323,22 @@ def getMoonPosition(date, lat, lng):
     d = to_days(date)
 
     c = moon_coords(d)
-    H = sidereal_time(d, lw) - c['ra']
-    h = altitude(H, phi, c['dec'])
+    H = sidereal_time(d, lw) - c["ra"]
+    h = altitude(H, phi, c["dec"])
 
     # formula 14.1 of "Astronomical Algorithms" 2nd edition by Jean Meeus
     # (Willmann-Bell, Richmond) 1998.
-    pa = atan(sin(H), tan(phi) * cos(c['dec']) - sin(c['dec']) * cos(H))
+    pa = atan(sin(H), tan(phi) * cos(c["dec"]) - sin(c["dec"]) * cos(H))
 
     # altitude correction for refraction
     h = h + astro_refraction(h)
 
     return {
-        'azimuth': azimuth(H, phi, c['dec']),
-        'altitude': h,
-        'distance': c['dist'],
-        'parallacticAngle': pa}
+        "azimuth": azimuth(H, phi, c["dec"]),
+        "altitude": h,
+        "distance": c["dist"],
+        "parallacticAngle": pa,
+    }
 
 
 # calculations for illumination parameters of the moon, based on
@@ -362,18 +357,20 @@ def getMoonIllumination(date):
     sdist = 149598000
 
     phi = acos(
-        sin(s['dec']) * sin(m['dec']) +
-        cos(s['dec']) * cos(m['dec']) * cos(s['ra'] - m['ra']))
-    inc = atan(sdist * sin(phi), m['dist'] - sdist * cos(phi))
+        sin(s["dec"]) * sin(m["dec"]) + cos(s["dec"]) * cos(m["dec"]) * cos(s["ra"] - m["ra"])
+    )
+    inc = atan(sdist * sin(phi), m["dist"] - sdist * cos(phi))
     angle = atan(
-        cos(s['dec']) * sin(s['ra'] - m['ra']),
-        sin(s['dec']) * cos(m['dec']) -
-        cos(s['dec']) * sin(m['dec']) * cos(s['ra'] - m['ra']))
+        cos(s["dec"]) * sin(s["ra"] - m["ra"]),
+        sin(s["dec"]) * cos(m["dec"]) - cos(s["dec"]) * sin(m["dec"]) * cos(s["ra"] - m["ra"]),
+    )
 
     return {
-        'fraction': (1 + cos(inc)) / 2,
-        'phase': 0.5 + 0.5 * inc * np.sign(angle) / PI,
-        'angle': angle}
+        "fraction": (1 + cos(inc)) / 2,
+        "phase": 0.5 + 0.5 * inc * np.sign(angle) / PI,
+        "angle": angle,
+    }
+
 
 def get_position_degrees(date, lng, lat):
     """
@@ -381,19 +378,19 @@ def get_position_degrees(date, lng, lat):
     """
     pos = get_position(date, lng, lat)
 
-    suncalc_azimuth_deg = np.degrees(pos['azimuth'])
-    altitude_deg = np.degrees(pos['altitude'])
+    suncalc_azimuth_deg = np.degrees(pos["azimuth"])
+    altitude_deg = np.degrees(pos["altitude"])
 
     # Classic compass convention:
     # 0 = north, 90 = east, 180 = south, 270 = west
     bearing_deg = (suncalc_azimuth_deg + 180) % 360
 
     return {
-        'azimuth_rad': pos['azimuth'],
-        'altitude_rad': pos['altitude'],
-        'suncalc_azimuth_deg': suncalc_azimuth_deg,
-        'altitude_deg': altitude_deg,
-        'bearing_deg': bearing_deg,
+        "azimuth_rad": pos["azimuth"],
+        "altitude_rad": pos["altitude"],
+        "suncalc_azimuth_deg": suncalc_azimuth_deg,
+        "altitude_deg": altitude_deg,
+        "bearing_deg": bearing_deg,
     }
 
 
@@ -403,14 +400,14 @@ def get_shadow_direction(date, lng, lat):
     """
     pos = get_position_degrees(date, lng, lat)
 
-    sun_bearing_deg = pos['bearing_deg']
+    sun_bearing_deg = pos["bearing_deg"]
     shadow_bearing_deg = (sun_bearing_deg + 180) % 360
 
     return {
-        'sun_bearing_deg': sun_bearing_deg,
-        'shadow_bearing_deg': shadow_bearing_deg,
-        'altitude_deg': pos['altitude_deg'],
-        'sun_above_horizon': pos['altitude_deg'] > 0,
+        "sun_bearing_deg": sun_bearing_deg,
+        "shadow_bearing_deg": shadow_bearing_deg,
+        "altitude_deg": pos["altitude_deg"],
+        "sun_above_horizon": pos["altitude_deg"] > 0,
     }
 
 
@@ -419,12 +416,13 @@ def get_shadow_length(date, lng, lat, object_height):
     Calculate shadow length for an object with given height in meters.
     """
     pos = get_position_degrees(date, lng, lat)
-    altitude_deg = pos['altitude_deg']
+    altitude_deg = pos["altitude_deg"]
 
     if altitude_deg <= 0:
         return np.inf
 
     return object_height / np.tan(np.radians(altitude_deg))
+
 
 # def hoursLater(date, h):
 #     # TODO: pythonize

@@ -1,14 +1,13 @@
 from datetime import datetime, timezone
 
+from app.scene import LAT, LNG
 from suncalc import (
+    get_day_summary,
+    get_moon_position_degrees,
     get_position_degrees,
     get_shadow_direction,
     get_sun_vector,
-    get_moon_position_degrees,
-    get_day_summary,
 )
-
-from app.scene import LAT, LNG
 
 
 def local_timezone():
@@ -86,9 +85,6 @@ def build_frame_state(date_obj, hour_value):
 def build_live_state():
     now = datetime.now()
     current_decimal_hour = (
-        now.hour
-        + now.minute / 60.0
-        + now.second / 3600.0
-        + now.microsecond / 3_600_000_000.0
+        now.hour + now.minute / 60.0 + now.second / 3600.0 + now.microsecond / 3_600_000_000.0
     )
     return build_frame_state(now.date(), current_decimal_hour)

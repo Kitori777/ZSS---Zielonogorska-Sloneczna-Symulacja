@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
-from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -304,7 +303,9 @@ class WeatherRepository:
 
         return df.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
 
-    def _nearest_value(self, df: pd.DataFrame | None, time_value: pd.Timestamp, column: str | None) -> Optional[float]:
+    def _nearest_value(
+        self, df: pd.DataFrame | None, time_value: pd.Timestamp, column: str | None
+    ) -> Optional[float]:
         if df is None or df.empty or column is None or column not in df.columns:
             return None
 
@@ -532,7 +533,9 @@ class WeatherRepository:
         air_temperature_k = self.get_snapshot(time_value, "air_temperature_k", source=source)
         relative_humidity = self.get_snapshot(time_value, "relative_humidity", source=source)
         wind_speed = self.get_snapshot(time_value, "wind_speed_m_per_s", source=source)
-        precipitation_m_per_s = self.get_snapshot(time_value, "precipitation_m_per_s", source=source)
+        precipitation_m_per_s = self.get_snapshot(
+            time_value, "precipitation_m_per_s", source=source
+        )
         air_pressure_pa = self.get_snapshot(time_value, "air_pressure_pa", source=source)
         shortwave = self.get_snapshot(time_value, "shortwave_down_w_per_m2", source=source)
         longwave = self.get_snapshot(time_value, "longwave_down_w_per_m2", source=source)

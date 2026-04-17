@@ -50,7 +50,7 @@ OBSTACLES = [
 
 
 def point_in_ellipse(x, y, cx, cy, a, b):
-    return ((x - cx) ** 2) / (a ** 2) + ((y - cy) ** 2) / (b ** 2) <= 1.0
+    return ((x - cx) ** 2) / (a**2) + ((y - cy) ** 2) / (b**2) <= 1.0
 
 
 def point_on_speedway_track(x, y):

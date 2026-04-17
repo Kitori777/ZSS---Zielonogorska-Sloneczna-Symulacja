@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 
 from .suncalc import get_position, get_times, getMoonPosition
