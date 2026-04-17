@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import json
+import ssl
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 import numpy as np
 import pandas as pd
+
+from app.scene import LAT, LNG
+
+try:
+    import requests  # type: ignore
+except Exception:  # pragma: no cover
+    requests = None
 
 
 @dataclass
@@ -19,6 +32,7 @@ class WeatherSnapshot:
     station_value: float | None = None
     model_value: float | None = None
     extra_value: float | None = None
+    openmeteo_value: float | None = None
 
 
 WEATHER_VARIABLES = {
@@ -27,24 +41,28 @@ WEATHER_VARIABLES = {
         "unit": "°C",
         "station": "temperatura_C",
         "model": "2m_temperature",
+        "openmeteo": "temperature_2m",
     },
     "dewpoint": {
         "label": "Punkt rosy",
         "unit": "°C",
         "station": "punkt_rosy_C",
         "model": "2m_dewpoint_temperature",
+        "openmeteo": "dew_point_2m",
     },
     "pressure": {
         "label": "Ciśnienie",
         "unit": "hPa",
         "station": "cisnienie_hPa",
         "model": "surface_pressure",
+        "openmeteo": "surface_pressure",
     },
     "wind_speed": {
         "label": "Prędkość wiatru",
         "unit": "m/s",
         "station": "predkosc_wiatru",
         "model": "__wind_speed__",
+        "openmeteo": "wind_speed_10m_ms",
     },
     "precipitation": {
         "label": "Opad",
@@ -52,18 +70,21 @@ WEATHER_VARIABLES = {
         "station": "opad_mm_6h",
         "model": "total_precipitation_hourly",
         "extra": "prcp",
+        "openmeteo": "precipitation",
     },
     "snow_depth": {
         "label": "Pokrywa śnieżna",
         "unit": "cm",
         "station": "snieg_cm",
         "model": "snow_depth",
+        "openmeteo": "snow_depth_cm",
     },
     "cloud_cover": {
         "label": "Zachmurzenie",
-        "unit": "oktanty",
+        "unit": "%",
         "station": "zachmurzenie_oktanty",
         "model": None,
+        "openmeteo": "cloud_cover",
     },
 }
 
@@ -74,10 +95,23 @@ class WeatherRepository:
         station_csv: str | Path | None = None,
         model_csv: str | Path | None = None,
         extra_rain_csv: str | Path | None = None,
+        latitude: float = LAT,
+        longitude: float = LNG,
+        timezone_name: str = "Europe/Warsaw",
     ):
+        self.latitude = float(latitude)
+        self.longitude = float(longitude)
+        self.timezone_name = timezone_name
+
         self.station_df = self._load_station(station_csv) if station_csv else None
         self.model_df = self._load_model(model_csv) if model_csv else None
         self.extra_rain_df = self._load_extra_rain(extra_rain_csv) if extra_rain_csv else None
+
+        self.openmeteo_df: pd.DataFrame | None = None
+        self._openmeteo_error: str | None = None
+        self._openmeteo_last_refresh: datetime | None = None
+        self._openmeteo_last_attempt: datetime | None = None
+        self._openmeteo_window: tuple[pd.Timestamp, pd.Timestamp] | None = None
 
     def _load_station(self, path: str | Path) -> pd.DataFrame:
         path = Path(path)
@@ -166,7 +200,7 @@ class WeatherRepository:
 
         dt = pd.to_datetime(df["time"], errors="coerce", utc=True)
         try:
-            dt = dt.dt.tz_convert("Europe/Warsaw").dt.tz_localize(None)
+            dt = dt.dt.tz_convert(self.timezone_name).dt.tz_localize(None)
         except Exception:
             dt = dt.dt.tz_localize(None)
 
@@ -189,44 +223,213 @@ class WeatherRepository:
         val = df.loc[idx, column]
         return None if pd.isna(val) else float(val)
 
-    def get_snapshot(self, time_value, variable_key: str, source: str = "best") -> WeatherSnapshot:
+    def _normalize_time(self, time_value) -> pd.Timestamp:
         ts = pd.Timestamp(time_value)
         if ts.tzinfo is not None:
-            ts = ts.tz_localize(None)
+            ts = ts.tz_convert(self.timezone_name).tz_localize(None)
+        return ts
 
+    def _format_source_name(self, source: str) -> str:
+        mapping = {
+            "best": "hybrydowe",
+            "station": "stacja",
+            "model": "model",
+            "extra": "opad ekstra",
+            "openmeteo": "Open-Meteo",
+        }
+        return mapping.get(source, source)
+
+    def _openmeteo_needs_refresh(self, ts: pd.Timestamp) -> bool:
+        if self.openmeteo_df is None or self.openmeteo_df.empty:
+            return True
+
+        now = datetime.now()
+        if self._openmeteo_last_refresh is None:
+            return True
+        if now - self._openmeteo_last_refresh > timedelta(minutes=30):
+            return True
+
+        if self._openmeteo_window is None:
+            return True
+
+        start_ts, end_ts = self._openmeteo_window
+        return ts < start_ts or ts > end_ts
+
+    def _fetch_json(self, url: str) -> dict:
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SunCalc3D/1.0"
+        headers = {
+            "User-Agent": user_agent,
+            "Accept": "application/json",
+        }
+
+        if requests is not None:
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            return response.json()
+
+        request = Request(url, headers=headers)
+        ssl_context = ssl.create_default_context()
+        with urlopen(request, timeout=15, context=ssl_context) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def _load_openmeteo(self, ts: pd.Timestamp):
+        if not self._openmeteo_needs_refresh(ts):
+            return
+
+        start_ts = ts.normalize() - pd.Timedelta(days=7)
+        end_ts = ts.normalize() + pd.Timedelta(days=15) + pd.Timedelta(hours=23)
+
+        params = {
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "timezone": self.timezone_name,
+            "hourly": ",".join(
+                [
+                    "temperature_2m",
+                    "dew_point_2m",
+                    "surface_pressure",
+                    "cloud_cover",
+                    "precipitation",
+                    "wind_speed_10m",
+                    "snow_depth",
+                ]
+            ),
+            "past_days": 7,
+            "forecast_days": 16,
+            "wind_speed_unit": "ms",
+        }
+
+        url = f"https://api.open-meteo.com/v1/forecast?{urlencode(params)}"
+        self._openmeteo_last_attempt = datetime.now()
+
+        try:
+            payload = self._fetch_json(url)
+            hourly = payload.get("hourly") or {}
+            times = hourly.get("time") or []
+            if not times:
+                raise ValueError("Brak godzinowych danych w odpowiedzi Open-Meteo.")
+
+            df = pd.DataFrame(hourly)
+            df["time"] = pd.to_datetime(df["time"], errors="coerce")
+
+            numeric_cols = [
+                "temperature_2m",
+                "dew_point_2m",
+                "surface_pressure",
+                "cloud_cover",
+                "precipitation",
+                "wind_speed_10m",
+                "snow_depth",
+            ]
+            for col in numeric_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+            if "snow_depth" in df.columns:
+                df["snow_depth_cm"] = df["snow_depth"]
+            if "wind_speed_10m" in df.columns:
+                df["wind_speed_10m_ms"] = df["wind_speed_10m"]
+
+            df = df.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
+            self.openmeteo_df = df
+            self._openmeteo_last_refresh = datetime.now()
+            self._openmeteo_window = (start_ts, end_ts)
+            self._openmeteo_error = None
+        except Exception as exc:
+            self._openmeteo_error = f"{type(exc).__name__}: {exc}"
+            if self.openmeteo_df is None:
+                self.openmeteo_df = pd.DataFrame(columns=["time"])
+
+    def get_openmeteo_status_text(self) -> str:
+        if self._openmeteo_error:
+            return f"Open-Meteo: błąd ({self._openmeteo_error})"
+        if self._openmeteo_last_refresh is None:
+            return "Open-Meteo: gotowe do pobrania"
+        return f"Open-Meteo: OK {self._openmeteo_last_refresh.strftime('%H:%M:%S')}"
+
+    def get_snapshot(self, time_value, variable_key: str, source: str = "best") -> WeatherSnapshot:
+        ts = self._normalize_time(time_value)
         cfg = WEATHER_VARIABLES[variable_key]
 
         station_value = self._nearest_value(self.station_df, ts, cfg.get("station"))
         model_value = self._nearest_value(self.model_df, ts, cfg.get("model"))
         extra_value = self._nearest_value(self.extra_rain_df, ts, cfg.get("extra"))
 
+        openmeteo_value = None
+        if source in {"best", "openmeteo"}:
+            self._load_openmeteo(ts)
+            openmeteo_value = self._nearest_value(self.openmeteo_df, ts, cfg.get("openmeteo"))
+
+        resolved_source = source
         if source == "station":
             value = station_value
         elif source == "model":
             value = model_value
         elif source == "extra":
             value = extra_value
+        elif source == "openmeteo":
+            value = openmeteo_value
+            resolved_source = "openmeteo"
         else:
             if variable_key == "precipitation":
-                value = extra_value if extra_value is not None else model_value if model_value is not None else station_value
+                if openmeteo_value is not None:
+                    value = openmeteo_value
+                    resolved_source = "openmeteo"
+                elif extra_value is not None:
+                    value = extra_value
+                    resolved_source = "extra"
+                elif model_value is not None:
+                    value = model_value
+                    resolved_source = "model"
+                else:
+                    value = station_value
+                    resolved_source = "station"
+            elif variable_key == "cloud_cover":
+                if openmeteo_value is not None:
+                    value = openmeteo_value
+                    resolved_source = "openmeteo"
+                else:
+                    value = station_value
+                    resolved_source = "station"
             else:
-                value = station_value if station_value is not None else model_value
+                if openmeteo_value is not None:
+                    value = openmeteo_value
+                    resolved_source = "openmeteo"
+                elif station_value is not None:
+                    value = station_value
+                    resolved_source = "station"
+                else:
+                    value = model_value
+                    resolved_source = "model"
+
+        display_unit = cfg["unit"]
+        if variable_key == "cloud_cover":
+            display_unit = "oktanty" if resolved_source == "station" else "%"
 
         return WeatherSnapshot(
             time=ts,
-            source=source,
+            source=resolved_source,
             variable_key=variable_key,
             label=cfg["label"],
-            unit=cfg["unit"],
+            unit=display_unit,
             value=value,
             station_value=station_value,
             model_value=model_value,
             extra_value=extra_value,
+            openmeteo_value=openmeteo_value,
         )
 
     def get_weather_bundle(self, time_value, source: str = "best") -> dict:
+        clouds = self.get_snapshot(time_value, "cloud_cover", source=source)
+        rain = self.get_snapshot(time_value, "precipitation", source=source)
+        temperature = self.get_snapshot(time_value, "temperature", source=source)
         return {
-            "clouds": self.get_snapshot(time_value, "cloud_cover", source="station"),
-            "rain": self.get_snapshot(time_value, "precipitation", source=source),
-            "temperature": self.get_snapshot(time_value, "temperature", source=source),
+            "clouds": clouds,
+            "rain": rain,
+            "temperature": temperature,
+            "meta": {
+                "source": self._format_source_name(source),
+                "openmeteo_status": self.get_openmeteo_status_text(),
+                "openmeteo_error": self._openmeteo_error,
+            },
         }

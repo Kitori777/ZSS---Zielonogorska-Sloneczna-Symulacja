@@ -3,6 +3,45 @@
 
 Projekt bazuje na bibliotece `suncalc-py` autorstwa Kyle’a Barrona i został rozszerzony o własną aplikację desktopową do wizualizacji 3D położenia słońca, księżyca oraz cienia.
 
+## [0.4.0] - 2026-04-17
+
+### Dodano
+- Integrację z Open-Meteo jako źródłem danych pogodowych dla trybu live i symulacji przyszłych dni.
+- Hybrydowy mechanizm pogody: Open-Meteo + lokalne pliki CSV jako fallback.
+- Obsługę prognoz opadu, temperatury oraz zachmurzenia w symulacji.
+- Wizualizację deszczu na torze i środku toru na podstawie danych pogodowych.
+- Wizualizację zachmurzenia wpływającą na odbiór sceny 3D.
+- Pionowy suwak czasu po lewej stronie panelu sterowania.
+- Przyciski powiększania, pomniejszania i resetu przybliżenia widoku 3D.
+- Możliwość obracania sceny 3D myszką z zachowaniem ustawionego kąta widoku po odświeżeniu.
+- Analizę punktową toru i środka toru dla każdej klatki symulacji.
+- Podgląd danych punktu po najechaniu / wskazaniu punktu na siatce toru.
+- Odczyt dla punktów obejmujący m.in.:
+  - stan nasłonecznienia lub zacienienia,
+  - procentową ekspozycję na słońce,
+  - temperaturę powietrza,
+  - szacowaną temperaturę punktu,
+  - intensywność opadu,
+  - zachmurzenie.
+- Automatyczny eksport danych z symulacji do pliku CSV po zakończeniu lub zatrzymaniu odtwarzania.
+- Folder `exports` do zapisu wyników symulacji.
+
+### Zmieniono
+- Przebudowano panel boczny tak, aby poprawnie działał przy maksymalizacji i fullscreen.
+- Zmieniono układ sekcji czasu, aby był czytelniejszy i wygodniejszy przy sterowaniu symulacją.
+- Rozszerzono status aplikacji o informacje o źródle danych pogodowych i stanie połączenia z Open-Meteo.
+- Usprawniono sposób odświeżania danych pogodowych przez użycie cache, aby ograniczyć zbędne zapytania do API.
+- Poprawiono obsługę jednostek zachmurzenia dla danych lokalnych i danych Open-Meteo.
+- Zachowano styl aplikacji przy jednoczesnym rozszerzeniu funkcjonalności interfejsu.
+
+### Naprawiono
+- Naprawiono błędy związane z pobieraniem prognozy z Open-Meteo.
+- Naprawiono problem z niepoprawnym zakresem zapytania do forecast API powodującym błąd `400 Bad Request`.
+- Naprawiono problem z resetowaniem widoku 3D po każdej aktualizacji sceny.
+- Naprawiono błędy związane z obsługą kliknięcia punktów i tablic indeksów z Matplotlib.
+- Naprawiono problem z układem interfejsu po przejściu w fullscreen lub po maksymalizacji okna.
+- Naprawiono błędy związane z konwersją znaczników czasu i ostrzeżeniami o nanosekundach.
+
 ## [0.3.0] - 2026-04-16
 
 ### Dodano
