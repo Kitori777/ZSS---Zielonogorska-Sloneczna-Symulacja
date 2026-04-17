@@ -21,6 +21,34 @@ except Exception:  # pragma: no cover
     requests = None
 
 
+def _identity(value):
+    return value
+
+
+def _percent_to_fraction(value):
+    if value is None:
+        return None
+    return float(value) / 100.0
+
+
+def _c_to_k(value):
+    if value is None:
+        return None
+    return float(value) + 273.15
+
+
+def _hpa_to_pa(value):
+    if value is None:
+        return None
+    return float(value) * 100.0
+
+
+def _mm_h_to_m_s(value):
+    if value is None:
+        return None
+    return float(value) / 3_600_000.0
+
+
 @dataclass
 class WeatherSnapshot:
     time: pd.Timestamp
@@ -42,6 +70,15 @@ WEATHER_VARIABLES = {
         "station": "temperatura_C",
         "model": "2m_temperature",
         "openmeteo": "temperature_2m",
+        "transform": _identity,
+    },
+    "air_temperature_k": {
+        "label": "Temperatura powietrza",
+        "unit": "K",
+        "station": "temperatura_C",
+        "model": "2m_temperature",
+        "openmeteo": "temperature_2m",
+        "transform": _c_to_k,
     },
     "dewpoint": {
         "label": "Punkt rosy",
@@ -49,6 +86,7 @@ WEATHER_VARIABLES = {
         "station": "punkt_rosy_C",
         "model": "2m_dewpoint_temperature",
         "openmeteo": "dew_point_2m",
+        "transform": _identity,
     },
     "pressure": {
         "label": "Ciśnienie",
@@ -56,6 +94,15 @@ WEATHER_VARIABLES = {
         "station": "cisnienie_hPa",
         "model": "surface_pressure",
         "openmeteo": "surface_pressure",
+        "transform": _identity,
+    },
+    "air_pressure_pa": {
+        "label": "Ciśnienie",
+        "unit": "Pa",
+        "station": "cisnienie_hPa",
+        "model": "surface_pressure",
+        "openmeteo": "surface_pressure",
+        "transform": _hpa_to_pa,
     },
     "wind_speed": {
         "label": "Prędkość wiatru",
@@ -63,6 +110,15 @@ WEATHER_VARIABLES = {
         "station": "predkosc_wiatru",
         "model": "__wind_speed__",
         "openmeteo": "wind_speed_10m_ms",
+        "transform": _identity,
+    },
+    "wind_speed_m_per_s": {
+        "label": "Prędkość wiatru",
+        "unit": "m/s",
+        "station": "predkosc_wiatru",
+        "model": "__wind_speed__",
+        "openmeteo": "wind_speed_10m_ms",
+        "transform": _identity,
     },
     "precipitation": {
         "label": "Opad",
@@ -71,6 +127,16 @@ WEATHER_VARIABLES = {
         "model": "total_precipitation_hourly",
         "extra": "prcp",
         "openmeteo": "precipitation",
+        "transform": _identity,
+    },
+    "precipitation_m_per_s": {
+        "label": "Opad",
+        "unit": "m/s",
+        "station": "opad_mm_6h",
+        "model": "total_precipitation_hourly",
+        "extra": "prcp",
+        "openmeteo": "precipitation",
+        "transform": _mm_h_to_m_s,
     },
     "snow_depth": {
         "label": "Pokrywa śnieżna",
@@ -78,6 +144,7 @@ WEATHER_VARIABLES = {
         "station": "snieg_cm",
         "model": "snow_depth",
         "openmeteo": "snow_depth_cm",
+        "transform": _identity,
     },
     "cloud_cover": {
         "label": "Zachmurzenie",
@@ -85,6 +152,31 @@ WEATHER_VARIABLES = {
         "station": "zachmurzenie_oktanty",
         "model": None,
         "openmeteo": "cloud_cover",
+        "transform": _identity,
+    },
+    "relative_humidity": {
+        "label": "Wilgotność względna",
+        "unit": "ułamek [0,1]",
+        "station": "wilgotnosc_proc",
+        "model": None,
+        "openmeteo": "relative_humidity_2m",
+        "transform": _percent_to_fraction,
+    },
+    "shortwave_down_w_per_m2": {
+        "label": "Promieniowanie krótkofalowe",
+        "unit": "W/m²",
+        "station": None,
+        "model": "surface_solar_radiation_downwards",
+        "openmeteo": "shortwave_radiation",
+        "transform": _identity,
+    },
+    "longwave_down_w_per_m2": {
+        "label": "Promieniowanie długofalowe",
+        "unit": "W/m²",
+        "station": None,
+        "model": "surface_thermal_radiation_downwards",
+        "openmeteo": None,
+        "transform": _identity,
     },
 }
 
@@ -141,6 +233,7 @@ class WeatherRepository:
             "opad_mm_6h",
             "snieg_cm",
             "zachmurzenie_oktanty",
+            "wilgotnosc_proc",
         ]
         for col in numeric_cols:
             if col in df.columns:
@@ -170,6 +263,8 @@ class WeatherRepository:
             "10m_u_component_of_wind",
             "10m_v_component_of_wind",
             "total_precipitation",
+            "surface_solar_radiation_downwards",
+            "surface_thermal_radiation_downwards",
         ]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -292,6 +387,8 @@ class WeatherRepository:
                     "precipitation",
                     "wind_speed_10m",
                     "snow_depth",
+                    "relative_humidity_2m",
+                    "shortwave_radiation",
                 ]
             ),
             "past_days": 7,
@@ -320,6 +417,8 @@ class WeatherRepository:
                 "precipitation",
                 "wind_speed_10m",
                 "snow_depth",
+                "relative_humidity_2m",
+                "shortwave_radiation",
             ]
             for col in numeric_cols:
                 if col in df.columns:
@@ -350,6 +449,7 @@ class WeatherRepository:
     def get_snapshot(self, time_value, variable_key: str, source: str = "best") -> WeatherSnapshot:
         ts = self._normalize_time(time_value)
         cfg = WEATHER_VARIABLES[variable_key]
+        transform = cfg.get("transform", _identity)
 
         station_value = self._nearest_value(self.station_df, ts, cfg.get("station"))
         model_value = self._nearest_value(self.model_df, ts, cfg.get("model"))
@@ -402,6 +502,12 @@ class WeatherRepository:
                     value = model_value
                     resolved_source = "model"
 
+        value = transform(value) if value is not None else None
+        station_value = transform(station_value) if station_value is not None else None
+        model_value = transform(model_value) if model_value is not None else None
+        extra_value = transform(extra_value) if extra_value is not None else None
+        openmeteo_value = transform(openmeteo_value) if openmeteo_value is not None else None
+
         display_unit = cfg["unit"]
         if variable_key == "cloud_cover":
             display_unit = "oktanty" if resolved_source == "station" else "%"
@@ -423,10 +529,24 @@ class WeatherRepository:
         clouds = self.get_snapshot(time_value, "cloud_cover", source=source)
         rain = self.get_snapshot(time_value, "precipitation", source=source)
         temperature = self.get_snapshot(time_value, "temperature", source=source)
+        air_temperature_k = self.get_snapshot(time_value, "air_temperature_k", source=source)
+        relative_humidity = self.get_snapshot(time_value, "relative_humidity", source=source)
+        wind_speed = self.get_snapshot(time_value, "wind_speed_m_per_s", source=source)
+        precipitation_m_per_s = self.get_snapshot(time_value, "precipitation_m_per_s", source=source)
+        air_pressure_pa = self.get_snapshot(time_value, "air_pressure_pa", source=source)
+        shortwave = self.get_snapshot(time_value, "shortwave_down_w_per_m2", source=source)
+        longwave = self.get_snapshot(time_value, "longwave_down_w_per_m2", source=source)
         return {
             "clouds": clouds,
             "rain": rain,
             "temperature": temperature,
+            "air_temperature_k": air_temperature_k,
+            "relative_humidity": relative_humidity,
+            "wind_speed_m_per_s": wind_speed,
+            "precipitation_m_per_s": precipitation_m_per_s,
+            "air_pressure_pa": air_pressure_pa,
+            "shortwave_down_w_per_m2": shortwave,
+            "longwave_down_w_per_m2": longwave,
             "meta": {
                 "source": self._format_source_name(source),
                 "openmeteo_status": self.get_openmeteo_status_text(),

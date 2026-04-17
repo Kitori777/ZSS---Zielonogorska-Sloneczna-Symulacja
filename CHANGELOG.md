@@ -3,6 +3,37 @@
 
 Projekt bazuje na bibliotece `suncalc-py` autorstwa Kyle’a Barrona i został rozszerzony o własną aplikację desktopową do wizualizacji 3D położenia słońca, księżyca oraz cienia.
 
+## [0.4.1] - 2026-04-17
+
+### Dodano
+- Rozszerzony eksport danych z symulacji do CSV o dodatkowe forcingi atmosferyczne.
+- Eksport wartości:
+  - `air_temperature_k`,
+  - `relative_humidity`,
+  - `wind_speed_m_per_s`,
+  - `precipitation_m_per_s`,
+  - `air_pressure_pa`,
+  - `shortwave_down_w_per_m2`,
+  - `longwave_down_w_per_m2`.
+- Dodatkowe pola eksportowe związane z zachmurzeniem:
+  - `cloud_cover_raw`,
+  - `cloud_unit_raw`.
+- Kolumnę `longwave_source` informującą, czy wartość promieniowania długofalowego pochodzi bezpośrednio ze źródła danych, czy z estymacji.
+- Rozbudowaną dokumentację techniczną w folderze `docs/` w formie raportu HTML.
+- Wykresy i materiały pomocnicze w `docs/assets/`, opisujące działanie modeli i zależności.
+
+### Zmieniono
+- Ujednolicono zapis zachmurzenia w eksporcie CSV do postaci znormalizowanej jako `cloud_cover` w zakresie `[0,1]`.
+- Zachowano jednocześnie wartości surowe zachmurzenia i ich oryginalne jednostki w osobnych kolumnach eksportu.
+- Rozszerzono analizę punktową o dodatkowe forcingi wykorzystywane przy późniejszej analizie danych.
+- Zaktualizowano README o aktualny zakres możliwości aplikacji, źródła danych, eksport i dokumentację.
+
+### Naprawiono
+- Naprawiono brakujące wartości `longwave_down_w_per_m2` w eksporcie dla przypadków, w których źródło nie zwracało danych bezpośrednio.
+- Dodano estymację `longwave_down_w_per_m2` na podstawie temperatury powietrza, wilgotności i zachmurzenia.
+- Poprawiono spójność jednostek eksportowanych danych pogodowych i forcingów atmosferycznych.
+- Poprawiono kompletność danych eksportowanych po zakończeniu symulacji, tak aby lepiej nadawały się do dalszych analiz.
+
 ## [0.4.0] - 2026-04-17
 
 ### Dodano

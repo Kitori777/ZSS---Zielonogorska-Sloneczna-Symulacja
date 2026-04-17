@@ -839,7 +839,7 @@ class MainWindow(QMainWindow):
         air_temp_txt = "brak" if air_temp is None else f"{air_temp:.2f} °C"
         cloud_value = item.get("cloud_cover")
         cloud_unit = item.get("cloud_unit") or ""
-        cloud_txt = "brak" if cloud_value is None else f"{cloud_value:.1f} {cloud_unit}"
+        cloud_txt = "brak" if cloud_value is None else f"{cloud_value:.2f} {cloud_unit}"
 
         text = (
             f"Punkt: X={item['x']:.1f}, Y={item['y']:.1f}\n"
@@ -875,10 +875,20 @@ class MainWindow(QMainWindow):
                 "is_shaded": item.get("is_shaded"),
                 "solar_exposure_pct": item.get("solar_exposure_pct"),
                 "air_temperature_c": item.get("air_temperature_c"),
+                "air_temperature_k": item.get("air_temperature_k"),
                 "estimated_point_temperature_c": item.get("estimated_point_temperature_c"),
                 "rain_mm_h": item.get("rain_mm_h"),
+                "precipitation_m_per_s": item.get("precipitation_m_per_s"),
                 "cloud_cover": item.get("cloud_cover"),
                 "cloud_unit": item.get("cloud_unit"),
+                "cloud_cover_raw": item.get("cloud_cover_raw"),
+                "cloud_unit_raw": item.get("cloud_unit_raw"),
+                "relative_humidity": item.get("relative_humidity"),
+                "wind_speed_m_per_s": item.get("wind_speed_m_per_s"),
+                "air_pressure_pa": item.get("air_pressure_pa"),
+                "shortwave_down_w_per_m2": item.get("shortwave_down_w_per_m2"),
+                "longwave_down_w_per_m2": item.get("longwave_down_w_per_m2"),
+                "longwave_source": item.get("longwave_source"),
             })
 
         self.last_recorded_frame_key = frame_key

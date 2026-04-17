@@ -84,6 +84,25 @@ def _point_surface_temperature_estimate(air_temp, solar_factor, is_shaded, rain_
     return value
 
 
+
+
+def _estimate_longwave_down(air_temp_k, relative_humidity, cloud_fraction):
+    if air_temp_k is None:
+        return None
+
+    air_temp_k = float(air_temp_k)
+    air_temp_c = air_temp_k - 273.15
+    rh = 0.6 if relative_humidity is None else max(0.0, min(float(relative_humidity), 1.0))
+    cloud_fraction = max(0.0, min(float(cloud_fraction), 1.0))
+
+    saturation_hpa = 6.112 * math.exp((17.67 * air_temp_c) / (air_temp_c + 243.5))
+    vapor_hpa = max(0.05, rh * saturation_hpa)
+
+    eps_clear = 1.24 * (vapor_hpa / air_temp_k) ** (1.0 / 7.0)
+    eps_all_sky = min(1.0, eps_clear * (1.0 + 0.22 * cloud_fraction * cloud_fraction))
+    sigma = 5.670374419e-8
+    return eps_all_sky * sigma * air_temp_k ** 4
+
 def build_point_analysis(frame_state, app_state, weather_bundle=None):
     sun_info = frame_state["sun_info"]
     sun_vector = frame_state["sun_vector"]
@@ -99,12 +118,26 @@ def build_point_analysis(frame_state, app_state, weather_bundle=None):
 
     rain_snap = _snapshot(weather_bundle, "rain")
     temp_snap = _snapshot(weather_bundle, "temperature")
+    temp_k_snap = _snapshot(weather_bundle, "air_temperature_k")
     cloud_snap = _snapshot(weather_bundle, "clouds")
+    rh_snap = _snapshot(weather_bundle, "relative_humidity")
+    wind_snap = _snapshot(weather_bundle, "wind_speed_m_per_s")
+    precip_ms_snap = _snapshot(weather_bundle, "precipitation_m_per_s")
+    pressure_snap = _snapshot(weather_bundle, "air_pressure_pa")
+    shortwave_snap = _snapshot(weather_bundle, "shortwave_down_w_per_m2")
+    longwave_snap = _snapshot(weather_bundle, "longwave_down_w_per_m2")
 
     rain_mm_h = None if rain_snap is None else rain_snap.value
     air_temp_c = None if temp_snap is None else temp_snap.value
+    air_temp_k = None if temp_k_snap is None else temp_k_snap.value
     cloud_value = None if cloud_snap is None else cloud_snap.value
     cloud_unit = None if cloud_snap is None else cloud_snap.unit
+    relative_humidity = None if rh_snap is None else rh_snap.value
+    wind_speed = None if wind_snap is None else wind_snap.value
+    precipitation_m_per_s = None if precip_ms_snap is None else precip_ms_snap.value
+    air_pressure_pa = None if pressure_snap is None else pressure_snap.value
+    shortwave = None if shortwave_snap is None else shortwave_snap.value
+    longwave = None if longwave_snap is None else longwave_snap.value
 
     cloud_fraction = _cloud_fraction(weather_bundle)
     sun_altitude_deg = float(sun_info.get("altitude_deg", 0.0))
@@ -126,6 +159,10 @@ def build_point_analysis(frame_state, app_state, weather_bundle=None):
         exposure_pct = solar_factor * 100.0
         estimated_temp = _point_surface_temperature_estimate(air_temp_c, solar_factor, is_shaded, rain_mm_h)
 
+        cloud_fraction_value = cloud_fraction
+        longwave_value = longwave if longwave is not None else _estimate_longwave_down(air_temp_k, relative_humidity, cloud_fraction_value)
+        longwave_source = "source" if longwave is not None else "estimated"
+
         item = {
             "x": x,
             "y": y,
@@ -133,10 +170,20 @@ def build_point_analysis(frame_state, app_state, weather_bundle=None):
             "is_shaded": is_shaded,
             "solar_exposure_pct": exposure_pct,
             "air_temperature_c": air_temp_c,
+            "air_temperature_k": air_temp_k,
             "estimated_point_temperature_c": estimated_temp,
             "rain_mm_h": rain_mm_h if rain_mm_h is not None else 0.0,
-            "cloud_cover": cloud_value,
-            "cloud_unit": cloud_unit,
+            "precipitation_m_per_s": precipitation_m_per_s,
+            "cloud_cover": cloud_fraction_value,
+            "cloud_unit": "fraction [0,1]",
+            "cloud_cover_raw": cloud_value,
+            "cloud_unit_raw": cloud_unit,
+            "relative_humidity": relative_humidity,
+            "wind_speed_m_per_s": wind_speed,
+            "air_pressure_pa": air_pressure_pa,
+            "shortwave_down_w_per_m2": shortwave,
+            "longwave_down_w_per_m2": longwave_value,
+            "longwave_source": longwave_source,
             "local_time": frame_state["dt_local"],
         }
         details.append(item)

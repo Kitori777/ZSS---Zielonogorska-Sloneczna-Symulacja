@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZSS – raport techniczny rdzenia obliczeniowego</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; background: #f3f6fb; color: #1f2937; }
+    header { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 38px 24px; }
+    main { max-width: 1240px; margin: 0 auto; padding: 24px; }
+    section { background: white; border: 1px solid #d8dee8; border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
+    h1, h2, h3 { margin-top: 0; }
+    .lead { font-size: 1.05rem; color: #e5e7eb; max-width: 980px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+    .card { background: #f8fafc; border: 1px solid #d8dee8; border-radius: 14px; padding: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #d8dee8; padding: 10px; vertical-align: top; text-align: left; }
+    th { background: #eef2f7; }
+    code, pre { font-family: Consolas, monospace; }
+    pre { background: #0f172a; color: #e5e7eb; padding: 14px; border-radius: 10px; overflow: auto; }
+    .formula { background: #fff8e7; border-left: 4px solid #f4b400; padding: 12px 14px; border-radius: 10px; margin: 10px 0; font-family: Consolas, monospace; }
+    .ok { color: #166534; font-weight: bold; }
+    .mid { color: #92400e; font-weight: bold; }
+    .no { color: #991b1b; font-weight: bold; }
+    img { max-width: 100%; border: 1px solid #d8dee8; border-radius: 12px; background: white; }
+    .small { color: #6b7280; font-size: 0.94rem; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>ZSS – raport techniczny rdzenia obliczeniowego</h1>
+  <p class="lead">Dokument opisuje matematyczny sens głównych funkcji projektu: astronomię słońca i księżyca, geometrię toru, algorytm cienia, warstwę forcingów atmosferycznych, model punktowej temperatury oraz zakres danych eksportowanych do CSV.</p>
+</header>
+<main>
+  <section>
+    <h2>1. Zakres modelu</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Astronomia</h3>
+        <ul>
+          <li>pozycja słońca i księżyca,</li>
+          <li>kierunek cienia,</li>
+          <li>wschód i zachód słońca,</li>
+          <li>wektor promieni słonecznych.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Geometria sceny</h3>
+        <ul>
+          <li>tor modelowany jako pierścień eliptyczny,</li>
+          <li>środek toru jako osobna elipsa,</li>
+          <li>przeszkody 3D jako pudełka AABB,</li>
+          <li>siatka punktów na powierzchni.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Pogoda</h3>
+        <ul>
+          <li>temperatura, opad, zachmurzenie,</li>
+          <li>wilgotność, wiatr, ciśnienie,</li>
+          <li>promieniowanie shortwave i longwave,</li>
+          <li>łączenie Open-Meteo i lokalnych CSV.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Eksport</h3>
+        <ul>
+          <li>dane punktowe dla każdej klatki,</li>
+          <li>forcingi atmosferyczne,</li>
+          <li>stan cienia i ekspozycji,</li>
+          <li>szacowana temperatura punktu.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Konwersja czasu i budowa stanu klatki</h2>
+    <p>Funkcja <code>decimal_hour_to_hms(hour_value)</code> zamienia godzinę dziesiętną na format czasu:</p>
+    <div class="formula">total_seconds = round(hour_value · 3600)<br>hour = total_seconds // 3600<br>minute = (total_seconds mod 3600) // 60<br>second = total_seconds mod 60</div>
+    <p>Funkcja <code>local_datetime_to_utc</code> buduje czas lokalny i zamienia go na UTC. To jest ważne, bo obliczenia astronomiczne wymagają spójnego czasu odniesienia.</p>
+    <p>Funkcja <code>build_frame_state</code> składa pełen stan pojedynczej klatki:</p>
+    <pre>{
+  dt_utc,
+  dt_local,
+  sun_info,
+  shadow_info,
+  moon_info,
+  day_info,
+  sun_vector
+}</pre>
+  </section>
+
+  <section>
+    <h2>3. Pozycja słońca i cień</h2>
+    <p>Projekt wykorzystuje bibliotekę <code>suncalc</code>, a potem przelicza azymut na klasyczny bearing kompasowy:</p>
+    <div class="formula">bearing_deg = (suncalc_azimuth_deg + 180) mod 360</div>
+    <p>Kierunek cienia wyznaczany jest jako kierunek przeciwny do kierunku słońca:</p>
+    <div class="formula">shadow_bearing_deg = (sun_bearing_deg + 180) mod 360</div>
+    <p>Długość cienia dla obiektu wysokości <code>H</code> i wysokości słońca <code>α</code>:</p>
+    <div class="formula">shadow_length = H / tan(α)</div>
+    <div class="grid">
+      <div>
+        <img src="assets/sun_altitude_curve.png" alt="Wysokość słońca" />
+      </div>
+      <div>
+        <img src="assets/shadow_length_curve.png" alt="Długość cienia" />
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Wektor słońca</h2>
+    <p>Współrzędne wektora słońca w układzie <code>x = wschód</code>, <code>y = północ</code>, <code>z = góra</code>:</p>
+    <div class="formula">x = cos(a) · sin(b)<br>y = cos(a) · cos(b)<br>z = sin(a)</div>
+    <p>Następnie wektor jest normalizowany:</p>
+    <div class="formula">v_norm = v / ||v||</div>
+  </section>
+
+  <section>
+    <h2>5. Geometria toru</h2>
+    <p>Tor i środek toru są oparte o elipsy. Punkt należy do elipsy, jeżeli:</p>
+    <div class="formula">((x - cx)<sup>2</sup> / a<sup>2</sup>) + ((y - cy)<sup>2</sup> / b<sup>2</sup>) ≤ 1</div>
+    <p>Tor jest pierścieniem eliptycznym:</p>
+    <div class="formula">point_on_speedway_track = inside_outer AND NOT inside_inner</div>
+  </section>
+
+  <section>
+    <h2>6. Algorytm cienia – przecięcie promienia z przeszkodą</h2>
+    <p>Przeszkody są modelowane jako pudełka osiowo wyrównane. Dla każdej osi obliczane są przedziały wejścia i wyjścia promienia:</p>
+    <div class="formula">t1 = (box_min[i] - origin[i]) / dir[i]<br>t2 = (box_max[i] - origin[i]) / dir[i]</div>
+    <p>Jeżeli wspólny przedział istnieje, promień przecina przeszkodę i punkt trafia do cienia. Funkcja <code>compute_light_map</code> wykonuje to dla całej siatki punktów.</p>
+  </section>
+
+  <section>
+    <h2>7. Forcingi atmosferyczne i ich konwersje</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Zmienna</th>
+          <th>Jednostka eksportu</th>
+          <th>Konwersja</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>air_temperature_k</code></td><td>K</td><td><code>T[K] = T[°C] + 273.15</code></td></tr>
+        <tr><td><code>precipitation_m_per_s</code></td><td>m/s</td><td><code>m/s = (mm/h) / 3_600_000</code></td></tr>
+        <tr><td><code>air_pressure_pa</code></td><td>Pa</td><td><code>Pa = hPa · 100</code></td></tr>
+        <tr><td><code>relative_humidity</code></td><td>ułamek [0,1]</td><td><code>RH = RH[%] / 100</code></td></tr>
+        <tr><td><code>cloud_cover</code></td><td>ułamek [0,1]</td><td><code>cloud_fraction = okta/8</code> albo <code>%/100</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>8. Model ekspozycji słonecznej punktu</h2>
+    <p>Dla punktu na torze liczony jest wskaźnik nasłonecznienia:</p>
+    <div class="formula">base_solar = max(0, sin(altitude))<br>shade_factor = 0 dla cienia, 1 dla słońca<br>rain_factor = min(rain_mm_h / 4, 1)<br><br>solar_factor = base_solar · shade_factor · (1 - 0.75 · cloud_fraction) · (1 - 0.35 · rain_factor)</div>
+    <p>Finalny zapis do CSV:</p>
+    <div class="formula">solar_exposure_pct = solar_factor · 100</div>
+  </section>
+
+  <section>
+    <h2>9. Model temperatury punktu</h2>
+    <p>Obecny model jest uproszczonym wskaźnikiem porównawczym:</p>
+    <div class="formula">point_temp = air_temp + 8.0 · solar_factor - min(3.5, rain_mm_h · 0.9) - 1.5 jeśli punkt jest w cieniu</div>
+    <img src="assets/point_temperature_model.png" alt="Model temperatury punktu" />
+    <p class="small">To nie jest pełny model fizyczny powierzchni. To wskaźnik analityczny do porównywania punktów i stanów pogodowych.</p>
+  </section>
+
+  <section>
+    <h2>10. Naprawa <code>longwave_down_w_per_m2</code></h2>
+    <p>Jeżeli lokalne źródło ma wartość, projekt zapisuje ją bezpośrednio. Jeżeli nie ma wartości, stosowana jest estymacja promieniowania długofalowego w dół na podstawie temperatury powietrza, wilgotności i zachmurzenia.</p>
+    <p>Wykorzystany został model emisyjności nieba z korektą zachmurzenia:</p>
+    <div class="formula">e_s = 6.112 · exp((17.67 · T_c) / (T_c + 243.5))<br>e_a = RH · e_s<br>ε_clear = 1.24 · (e_a / T_k)<sup>1/7</sup><br>ε_all_sky = min(1, ε_clear · (1 + 0.22 · cloud_fraction²))<br>L↓ = ε_all_sky · σ · T_k⁴</div>
+    <p>gdzie <code>σ = 5.670374419 · 10⁻⁸ W·m⁻²·K⁻⁴</code>.</p>
+    <img src="assets/longwave_estimate_model.png" alt="Model longwave" />
+  </section>
+
+  <section>
+    <h2>11. Co trafia do CSV po symulacji</h2>
+    <p>Aktualny eksport obejmuje zarówno forcingi atmosferyczne, jak i pola analityczne sceny:</p>
+    <pre>frame_local_time, date, time,
+x, y, point_type,
+is_shaded, solar_exposure_pct,
+air_temperature_c, air_temperature_k,
+estimated_point_temperature_c,
+rain_mm_h, precipitation_m_per_s,
+cloud_cover, cloud_unit,
+cloud_cover_raw, cloud_unit_raw,
+relative_humidity, wind_speed_m_per_s,
+air_pressure_pa,
+shortwave_down_w_per_m2,
+longwave_down_w_per_m2,
+longwave_source</pre>
+  </section>
+</main>
+</body>
+</html>
