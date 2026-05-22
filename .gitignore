@@ -42,3 +42,12 @@ Thumbs.db
 
 # Logs
 *.log
+# Local project / uv artifacts
+.github/
+.uv-cache/
+.uv-python/
+.local/
+
+# Generated simulation outputs
+exports/
+*.csv.tmp

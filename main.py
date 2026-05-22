@@ -1,4 +1,4 @@
-from app.gui import run_app
+from falubaz_track_model.zss import main as run_app
 
 
 def main():

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.0] - 2026-05-22
+
+### Dodano
+- Dodano docelowy entry point `zss-gui` obok istniejącego `falubaz-zss`.
+- Dodano jawne pakowanie plików CSV z `falubaz_track_model/zss/data/`, żeby dane pogodowe były dostępne również po instalacji pakietu.
+- Rozszerzono `.gitignore` o lokalne katalogi środowiska i artefakty `uv`: `.uv-cache/`, `.uv-python/`, `.venv/`, `.local/` oraz katalog eksportów symulacji.
+
+### Zmieniono
+- Podniesiono wersję projektu w `pyproject.toml` do `0.5.0`.
+- Uporządkowano konfigurację pakietu tak, aby głównym źródłem kodu był moduł `falubaz_track_model.zss`.
+- Zaktualizowano adres repozytorium projektu w metadanych `pyproject.toml`.
+- Uporządkowano konfigurację Ruff po przeniesieniu testów i modułów do docelowej struktury ZSS.
+
+### Usunięto
+- Usunięto zdublowaną, starszą warstwę aplikacji z katalogu `app/`.
+- Usunięto zdublowaną, starszą kopię biblioteki `suncalc/` z katalogu głównego; projekt korzysta teraz z wersji vendoryzowanej w `falubaz_track_model/zss/_vendor/suncalc/`.
+- Usunięto zdublowane testy dla starej struktury `app/` i `suncalc/`, pozostawiając testy dla `falubaz_track_model.zss`.
+- Usunięto wygenerowane artefakty z repozytorium: `__pycache__/`, `ZSS.egg-info/`, stare eksporty CSV oraz zdublowane pliki danych pogodowych z katalogu głównego `data/`.
+
+### Naprawiono
+- Ograniczono ryzyko przypadkowego commitowania lokalnych środowisk Pythona, cache `uv` i plików eksportowanych przez aplikację.
+- Zmniejszono bałagan w repozytorium przez pozostawienie jednego źródła prawdy dla aplikacji ZSS.
 
 Projekt bazuje na bibliotece `suncalc-py` autorstwa Kyle’a Barrona i został rozszerzony o własną aplikację desktopową do wizualizacji 3D położenia słońca, księżyca oraz cienia.
 
